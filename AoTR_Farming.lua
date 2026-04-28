@@ -90,11 +90,11 @@ local espFolder  = nil
 -- ══════════════════════════════════════
 --  HELPERS
 -- ══════════════════════════════════════
-local function safe(f, ...) pcall(f, ...) end
+local function safe(f, a1, a2, a3) pcall(f, a1, a2, a3) end
 local function rng(n, r) r = r or n*0.15; return n + (math.random()-0.5)*r*2 end
 
 -- Fire remotes by keyword
-local function fireKw(kws, ...)
+local function fireKw(kws, a1, a2, a3)
     for _, folder in ipairs({RS, workspace}) do
         pcall(function()
             for _, r in ipairs(folder:GetDescendants()) do
@@ -103,8 +103,8 @@ local function fireKw(kws, ...)
                     for _, k in ipairs(kws) do
                         if n:find(k, 1, true) then
                             pcall(function()
-                                if r:IsA("RemoteEvent") then r:FireServer(...)
-                                else r:InvokeServer(...) end
+                                if r:IsA("RemoteEvent") then r:FireServer(a1, a2, a3)
+                                else r:InvokeServer(a1, a2, a3) end
                             end)
                         end
                     end
