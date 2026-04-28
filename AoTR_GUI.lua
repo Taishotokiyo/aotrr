@@ -280,6 +280,12 @@ local function attackTitan(model, useTS)
     if not tgt then return end
     local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
+
+    -- record HP before attack
+    local th = model:FindFirstChildOfClass("Humanoid")
+    if not th or th.Health <= 0 then return end -- already dead, skip
+    local hpBefore = th.Health
+
     hrp.CFrame = CFrame.new(tgt.Position + getOffset())
     task.wait(0.04)
     local dist = (hrp.Position - tgt.Position).Magnitude
@@ -290,18 +296,35 @@ local function attackTitan(model, useTS)
         else
             fireKw({"attack","slash","nape","execute","kill","hit","swing","damage","m1"}, model)
         end
-        task.wait(0.03)
+        task.wait(0.05)
         hrp.CFrame = CFrame.new(tgt.Position + Vector3.new(0,3,0))
-        task.wait(0.03)
+        task.wait(0.05)
         fireKw({"attack","slash","nape","kill","hit"}, model)
-        local th = model:FindFirstChildOfClass("Humanoid")
-        if th then
-            if th.Health <= 0 or th.Health < th.MaxHealth*0.05 then
-                STATS.kills = STATS.kills + 1
-                STATS.gold  = STATS.gold + math.random(80,220)
-                STATS.xp    = STATS.xp + math.random(150,420)
+
+        -- wait up to 2 seconds for titan to actually die
+        task.spawn(function()
+            local waited = 0
+            while waited < 2 do
+                task.wait(0.1)
+                waited = waited + 0.1
+                if not model or not model.Parent then
+                    -- model removed = titan died
+                    STATS.kills = STATS.kills + 1
+                    STATS.gold  = STATS.gold + math.random(80,220)
+                    STATS.xp    = STATS.xp + math.random(150,420)
+                    return
+                end
+                local hum = model:FindFirstChildOfClass("Humanoid")
+                if not hum or hum.Health <= 0 then
+                    -- humanoid dead
+                    STATS.kills = STATS.kills + 1
+                    STATS.gold  = STATS.gold + math.random(80,220)
+                    STATS.xp    = STATS.xp + math.random(150,420)
+                    return
+                end
             end
-        end
+            -- titan still alive after 2s = attack didnt kill, dont count
+        end)
     end
 end
 
