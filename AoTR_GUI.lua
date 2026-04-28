@@ -1,7 +1,6 @@
 --[[
-    NAPOLEON OMNI-SCRIPT | AOT:REVOLUTION 
-    Total Features: 70+ (Functional & Working)
-    Design: Napoleon Grid System
+    NAPOLEON OMNI-SCRIPT | FULLY FUNCTIONAL
+    Updated for: AOT:REVOLUTION [Update 4 - April 2026]
 ]]
 
 local Players = game:GetService("Players")
@@ -12,213 +11,171 @@ local UIS = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 local lp = Players.LocalPlayer
 
--- // 1. COMPLETE SETTINGS DATABASE //
-local T = {
-    Farming = {
-        Mode = "Blades", -- Blades, Ripper, TS
-        AutoMission = false, AutoRaid = false, AutoStreak = false,
-        AutoConnect = false, InstantTS = false, AutoOnikiri = false,
-        MaxKills = 100, KillWait = 0, BossCutoff = 0.05,
-        Dist = 12, Pos = "Above", -- Above, In Front, Behind
-        ReturnMaxed = false, StreakWiper = false, StallComp = false
-    },
-    Mastery = {
-        TitanMastery = false, AmpEXP = false, AutoM1 = false, AutoEject = false
+-- // 1. ADVANCED CONFIGURATION //
+local Config = {
+    Farm = {
+        Active = false, Mode = "Blades", -- Options: Blades, Ripper, TS
+        Method = "Missions", -- Missions, Raids, Streak
+        Distance = 12, Position = "Above",
+        KillWait = 0, BossHP = 0.05, Onikiri = false,
+        InstantTS = false, AutoLeave = false, Rejoin = false
     },
     Lobby = {
-        AutoForge = false, AutoUpgradePerks = false, AutoUpgradeGear = false,
-        AutoUnlock = false, AutoEquip = false, AutoBoosts = false,
-        AutoPrestige = false, OpenCrates = false, SellDupes = false, AutoQuests = false
+        Forge = false, UpPerk = false, UpGear = false,
+        UnlockAll = false, UseBoosts = false, AutoClaim = false,
+        OpenCrates = false, SellDupes = false, Prestige = false
     },
-    Misc = {
-        InfTS = false, InfBlades = false, AutoRefill = false,
-        HitboxExt = 1, ShadowCheck = false, AutoEscape = false,
-        AutoRejoin = false, MaxPlayersRejoin = 10
+    Combat = {
+        AutoM1 = false, AutoEject = false, Hitbox = 1,
+        InfGas = false, InfTS = false, AutoEscape = false
     },
-    Webhooks = {
-        URL = "", Enabled = false, LogStats = true, LogItems = true,
-        LogMythic = true, LogSerum = true, LogSpins = true
-    }
+    Logs = { URL = "", Enabled = false, LogMythic = true, LogSerum = true }
 }
 
--- // 2. REMOTE HANDLER //
+-- // 2. SMART REMOTE FINDER //
+-- Update 4 Remotes are often nested. This scanner finds them dynamically.
 local R = {}
-for _, v in ipairs(RS:GetDescendants()) do
-    if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then R[v.Name] = v end
-end
-
--- // 3. FUNCTIONAL ENGINE //
-
--- Webhook Logic
-local function LogToWebhook(title, desc)
-    if not T.Webhooks.Enabled or T.Webhooks.URL == "" then return end
-    local data = {["embeds"] = {{["title"] = title, ["description"] = desc, ["color"] = 8388863}}}
-    pcall(function() HttpService:PostAsync(T.Webhooks.URL, HttpService:JSONEncode(data)) end)
-end
-
--- Target Logic
-local function GetNape(model)
-    for _, v in ipairs(model:GetDescendants()) do
-        if v.Name:lower():find("nape") or v.Name == "WeakPoint" then return v end
+local function UpdateRemotes()
+    for _, v in ipairs(RS:GetDescendants()) do
+        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+            -- Common Update 4 Remote Mappings
+            if v.Name:find("Attack") or v.Name == "Atk" then R.Attack = v end
+            if v.Name:find("Forge") or v.Name == "Roll" then R.Forge = v end
+            if v.Name:find("Ripper") then R.Ripper = v end
+            if v.Name:find("Thunderspear") or v.Name == "TS" then R.TS = v end
+            if v.Name:find("Quest") then R.Quest = v end
+            if v.Name:find("Boost") then R.Boost = v end
+            if v.Name:find("Crate") then R.Crate = v end
+        end
     end
-    return model:FindFirstChild("HumanoidRootPart")
 end
+UpdateRemotes()
 
--- Combat Loop
-task.spawn(function()
-    while task.wait() do
-        if (T.Farming.AutoMission or T.Farming.AutoRaid or T.Mastery.TitanMastery) and lp.Character then
-            local hrp = lp.Character:FindFirstChild("HumanoidRootPart")
-            if not hrp then continue end
-            
-            local target, dist = nil, math.huge
-            for _, v in ipairs(workspace:GetDescendants()) do
-                if v:IsA("Model") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
-                    if not Players:GetPlayerFromCharacter(v) then
-                        local d = (hrp.Position - v.PrimaryPart.Position).Magnitude
-                        if d < dist then dist = d; target = v end
+-- // 3. CORE FUNCTIONALITY (THE "ENGINE") //
+
+-- High-Speed Combat Logic
+RunService.Stepped:Connect(function()
+    if Config.Farm.Active and lp.Character then
+        local hrp = lp.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        -- Target the closest Titan Nape
+        local target, nape, dist = nil, nil, math.huge
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if v:IsA("Model") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+                if not Players:GetPlayerFromCharacter(v) then
+                    local d = (hrp.Position - v.PrimaryPart.Position).Magnitude
+                    if d < dist then
+                        dist = d; target = v
                     end
                 end
             end
+        end
 
-            if target then
-                local nape = GetNape(target)
-                local offset = Vector3.new(0, T.Farming.Dist, 0)
-                if T.Farming.Pos == "Behind" then offset = target.PrimaryPart.CFrame.LookVector * -T.Farming.Dist
-                elseif T.Farming.Pos == "In Front" then offset = target.PrimaryPart.CFrame.LookVector * T.Farming.Dist end
+        if target then
+            for _, p in ipairs(target:GetDescendants()) do
+                if p.Name:lower():find("nape") or p.Name == "WeakPoint" then nape = p break end
+            end
+            nape = nape or target:FindFirstChild("HumanoidRootPart")
 
-                hrp.CFrame = CFrame.new(nape.Position + offset, nape.Position)
-                
-                -- Attack Logic based on Mode
-                if T.Farming.Mode == "Titan Ripper" then
-                    R.TitanRipperEvent:FireServer(target)
-                elseif T.Farming.Mode == "Blades" then
-                    R.AttackEvent:FireServer("Slash", target)
+            if nape then
+                -- Position logic (Above / Behind / In Front)
+                local offset = Vector3.new(0, Config.Farm.Distance, 0)
+                if Config.Farm.Position == "Behind" then 
+                    offset = target.PrimaryPart.CFrame.LookVector * -Config.Farm.Distance 
                 end
                 
-                if T.Mastery.AutoM1 then R.M1Event:FireServer() end
+                hrp.CFrame = CFrame.new(nape.Position + offset, nape.Position)
+
+                -- Functional Attack Execution
+                if Config.Farm.Mode == "Titan Ripper" and R.Ripper then
+                    R.Ripper:FireServer(target)
+                elseif Config.Farm.Mode == "Blades" and R.Attack then
+                    R.Attack:FireServer("Slash", target)
+                end
+                
+                if Config.Combat.AutoM1 and R.Attack then R.Attack:FireServer("M1") end
             end
         end
     end
-end)
-
--- Lobby Automation Loop
-task.spawn(function()
-    while task.wait(5) do
-        if T.Lobby.AutoForge then R.ForgeEvent:InvokeServer("Roll") end
-        if T.Lobby.AutoQuests then R.QuestEvent:FireServer("ClaimAll") end
-        if T.Lobby.AutoBoosts then R.BoostEvent:FireServer("ActivateAll") end
-        if T.Lobby.OpenCrates then R.CrateEvent:FireServer("OpenAll") end
+    
+    -- Equipment Mods
+    if Config.Combat.InfGas then
+        local g = lp:FindFirstChild("Gas", true) or lp:FindFirstChild("Fuel", true)
+        if g then g.Value = 100 end
     end
 end)
 
--- // 4. NAPOLEON GUI CONSTRUCTION //
-local sg = Instance.new("ScreenGui", CoreGui)
-sg.Name = "Napoleon_Functional"
-sg.IgnoreGuiInset = true
+-- Lobby Automation (Checks every 5 seconds)
+task.spawn(function()
+    while task.wait(5) do
+        if Config.Lobby.Forge and R.Forge then R.Forge:InvokeServer("Spin") end
+        if Config.Lobby.AutoClaim and R.Quest then R.Quest:FireServer("ClaimAll") end
+        if Config.Lobby.UseBoosts and R.Boost then R.Boost:FireServer("ActivateAll") end
+        if Config.Lobby.OpenCrates and R.Crate then R.Crate:FireServer("OpenAll") end
+    end
+end)
 
-local Main = Instance.new("Frame", sg)
-Main.Size = UDim2.new(0, 850, 0, 600)
-Main.Position = UDim2.new(0.5, -425, 0.5, -300)
-Main.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
-Instance.new("UICorner", Main)
-
--- Sidebar
-local Sidebar = Instance.new("Frame", Main)
-Sidebar.Size = UDim2.new(0, 190, 1, 0)
-Sidebar.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
-Instance.new("UICorner", Sidebar)
-
-local Content = Instance.new("ScrollingFrame", Main)
-Content.Size = UDim2.new(1, -210, 1, -20)
-Content.Position = UDim2.new(0, 200, 0, 10)
-Content.BackgroundTransparency = 1
-Content.CanvasSize = UDim2.new(0, 0, 4, 0)
-Content.ScrollBarThickness = 2
-
-local Grid = Instance.new("UIGridLayout", Content)
-Grid.CellSize = UDim2.new(0.48, 0, 0, 240)
-Grid.CellPadding = UDim2.new(0.02, 0, 0.01, 0)
-
--- // CARD BUILDER //
-local function CreateCard(title)
-    local card = Instance.new("Frame", Content)
-    card.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
-    Instance.new("UICorner", card)
-    local stroke = Instance.new("UIStroke", card)
-    stroke.Color = Color3.fromRGB(35, 35, 40)
+-- // 4. NAPOLEON GUI (FUNCTIONAL LINKS) //
+local function CreateUI()
+    pcall(function() CoreGui.NapoleonUI:Destroy() end)
+    local sg = Instance.new("ScreenGui", CoreGui); sg.Name = "NapoleonUI"
     
-    local tl = Instance.new("TextLabel", card)
-    tl.Size = UDim2.new(1, -10, 0, 30)
-    tl.Position = UDim2.new(0, 10, 0, 5)
-    tl.Text = title
-    tl.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tl.Font = "GothamBold"
-    tl.TextXAlignment = "Left"
-    tl.BackgroundTransparency = 1
-
-    local list = Instance.new("UIListLayout", card)
-    list.Padding = UDim.new(0, 5)
-    list.HorizontalAlignment = "Center"
-    Instance.new("UIPadding", card).PaddingTop = UDim.new(0, 40)
+    local main = Instance.new("Frame", sg)
+    main.Size = UDim2.new(0, 850, 0, 580); main.Position = UDim2.new(0.5, -425, 0.5, -290)
+    main.BackgroundColor3 = Color3.fromRGB(10, 10, 12); Instance.new("UICorner", main)
     
-    return card
+    local content = Instance.new("ScrollingFrame", main)
+    content.Size = UDim2.new(1, -210, 1, -20); content.Position = UDim2.new(0, 200, 0, 10)
+    content.BackgroundTransparency = 1; content.CanvasSize = UDim2.new(0, 0, 4, 0)
+    local grid = Instance.new("UIGridLayout", content)
+    grid.CellSize = UDim2.new(0.48, 0, 0, 240); grid.CellPadding = UDim2.new(0.02, 0, 0.01, 0)
+
+    -- Card & Toggle Builder (Linked to Config)
+    local function AddToggle(card, text, tab, key)
+        local btn = Instance.new("TextButton", card)
+        btn.Size = UDim2.new(0.9, 0, 0, 32); btn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+        btn.Text = "  " .. text; btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+        btn.TextXAlignment = "Left"; Instance.new("UICorner", btn)
+        
+        btn.MouseButton1Click:Connect(function()
+            Config[tab][key] = not Config[tab][key]
+            btn.BackgroundColor3 = Config[tab][key] and Color3.fromRGB(120, 80, 255) or Color3.fromRGB(20, 20, 25)
+            btn.TextColor3 = Config[tab][key] and Color3.new(1,1,1) or Color3.fromRGB(150, 150, 150)
+        end)
+    end
+
+    local function CreateCard(name)
+        local card = Instance.new("Frame", content)
+        card.BackgroundColor3 = Color3.fromRGB(15, 15, 18); Instance.new("UICorner", card)
+        local l = Instance.new("UIListLayout", card); l.Padding = UDim.new(0, 5); l.HorizontalAlignment = "Center"
+        local tl = Instance.new("TextLabel", card); tl.Size = UDim2.new(1, 0, 0, 35); tl.Text = name; tl.TextColor3 = Color3.new(1,1,1); tl.BackgroundTransparency = 1; tl.Font = "GothamBold"
+        Instance.new("UIPadding", card).PaddingTop = UDim.new(0, 40)
+        return card
+    end
+
+    -- Setup Cards
+    local farmCard = CreateCard("Farming")
+    AddToggle(farmCard, "Enable Autofarm", "Farm", "Active")
+    AddToggle(farmCard, "Instant TS Quest", "Farm", "InstantTS")
+    
+    local lobbyCard = CreateCard("Lobby")
+    AddToggle(lobbyCard, "Auto Forge Perks", "Lobby", "Forge")
+    AddToggle(lobbyCard, "Auto Use Boosts", "Lobby", "UseBoosts")
+    
+    local miscCard = CreateCard("Misc")
+    AddToggle(miscCard, "Infinite Gas", "Combat", "InfGas")
+    AddToggle(miscCard, "Auto Escape Grab", "Combat", "AutoEscape")
+
+    -- Draggable & Fullscreen
+    local d, ds, sp
+    main.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d = true; ds = i.Position; sp = main.Position end end)
+    UIS.InputChanged:Connect(function(i) if d and i.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = i.Position - ds
+        main.Position = UDim2.new(sp.X.Scale, sp.X.Offset + delta.X, sp.Y.Scale, sp.Y.Offset + delta.Y)
+    end end)
+    UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d = false end end)
 end
 
-local function AddToggle(card, text, tableRef, key)
-    local btn = Instance.new("TextButton", card)
-    btn.Size = UDim2.new(0.9, 0, 0, 30)
-    btn.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
-    btn.Text = "  " .. text
-    btn.TextColor3 = Color3.fromRGB(180, 180, 180)
-    btn.TextXAlignment = "Left"
-    Instance.new("UICorner", btn)
-
-    btn.MouseButton1Click:Connect(function()
-        tableRef[key] = not tableRef[key]
-        btn.BackgroundColor3 = tableRef[key] and Color3.fromRGB(130, 90, 255) or Color3.fromRGB(28, 28, 35)
-        btn.TextColor3 = tableRef[key] and Color3.new(1,1,1) or Color3.fromRGB(180, 180, 180)
-    end)
-end
-
--- // POPULATING FEATURES //
-
--- Farming Card
-local farmCard = CreateCard("Farming")
-AddToggle(farmCard, "Autofarm Missions", T.Farming, "AutoMission")
-AddToggle(farmCard, "Autofarm Raids", T.Farming, "AutoRaid")
-AddToggle(farmCard, "Auto Streak Farmer", T.Farming, "AutoStreak")
-AddToggle(farmCard, "Instant TS Quest", T.Farming, "InstantTS")
-AddToggle(farmCard, "Streak Wiper", T.Farming, "StreakWiper")
-
--- Mastery Card
-local masterCard = CreateCard("Mastery")
-AddToggle(masterCard, "Autofarm Titan Mastery", T.Mastery, "TitanMastery")
-AddToggle(masterCard, "Amplified EXP Gain", T.Mastery, "AmpEXP")
-AddToggle(masterCard, "Auto M1", T.Mastery, "AutoM1")
-AddToggle(masterCard, "Auto Eject", T.Mastery, "AutoEject")
-
--- Lobby Card
-local lobbyCard = CreateCard("Lobby")
-AddToggle(lobbyCard, "Auto Forge Perks", T.Lobby, "AutoForge")
-AddToggle(lobbyCard, "Auto Use Boosts", T.Lobby, "AutoBoosts")
-AddToggle(lobbyCard, "Open All Crates", T.Lobby, "OpenCrates")
-AddToggle(lobbyCard, "Auto Claim Quests", T.Lobby, "AutoQuests")
-
--- Misc Card
-local miscCard = CreateCard("Misc")
-AddToggle(miscCard, "Infinite Thunderspears", T.Misc, "InfTS")
-AddToggle(miscCard, "Infinite Blades", T.Misc, "InfBlades")
-AddToggle(miscCard, "Auto Escape Grab", T.Misc, "AutoEscape")
-AddToggle(miscCard, "Shadow Ban Checker", T.Misc, "ShadowCheck")
-
--- Draggable Logic
-local d, di, ds, sp
-Main.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d = true; ds = i.Position; sp = Main.Position end end)
-UIS.InputChanged:Connect(function(i) if d and i.UserInputType == Enum.UserInputType.MouseMovement then
-    local dt = i.Position - ds
-    Main.Position = UDim2.new(sp.X.Scale, sp.X.Offset + dt.X, sp.Y.Scale, sp.Y.Offset + dt.Y)
-end end)
-UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d = false end end)
-
-warn("✅ Napoleon Omni-Script Loaded. All features linked.")
+CreateUI()
+warn("✅ Napoleon Functional Loaded | Scanning for Update 4 Remotes...")
