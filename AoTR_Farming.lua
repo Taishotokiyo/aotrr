@@ -283,13 +283,13 @@ local function farmLoop(mode, weaponType)
             end
 
             local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-            if not hrp then task.wait(1); continue end
+            if not hrp then task.wait(1)
+            else
 
             local titans = getTitans(hrp)
             local alive  = #titans
 
             if alive == 0 then
-                -- no titans, wait for next wave or auto leave
                 task.wait(rng(2))
                 if T.AutoLeave then
                     if stats.kills >= CFG.MAX_KILLS then
@@ -299,12 +299,10 @@ local function farmLoop(mode, weaponType)
                     end
                 end
             elseif alive == 1 then
-                -- last titan — stall if enabled
                 local titan = titans[1]
                 local isBoss = titan.hum.MaxHealth > 5000
 
                 if isBoss and titan.hum.Health / titan.hum.MaxHealth < CFG.BOSS_HP_CUTOFF then
-                    -- HP cutoff — don't kill yet
                     task.wait(rng(CFG.STALL_TIME))
                 else
                     task.wait(rng(CFG.KILL_DELAY))
@@ -317,35 +315,30 @@ local function farmLoop(mode, weaponType)
                     stats.streak = stats.streak + 1
                 end
 
-                -- Streak wiper
                 if T.AutoStreak and stats.streak >= CFG.STREAK_TARGET then
                     leaveToLobby()
                     stats.streak = 0
                     task.wait(rng(CFG.REJOIN_DELAY))
                 end
             else
-                -- multiple titans — attack all except last
                 for i = 1, #titans - 1 do
                     if not T[key] then break end
                     local titan = titans[i]
                     local isBoss = titan.hum.MaxHealth > 5000
                     local hpPct  = titan.hum.Health / titan.hum.MaxHealth
-
-                    -- skip boss if above HP cutoff
-                    if isBoss and hpPct < CFG.BOSS_HP_CUTOFF then
-                        continue
+                    if not (isBoss and hpPct < CFG.BOSS_HP_CUTOFF) then
+                        if weaponType == "ts" then
+                            attackTS(titan.model)
+                        else
+                            attackTitan(titan.model)
+                        end
+                        stats.kills = stats.kills + 1
+                        task.wait(rng(0.12))
                     end
-
-                    if weaponType == "ts" then
-                        attackTS(titan.model)
-                    else
-                        attackTitan(titan.model)
-                    end
-                    stats.kills = stats.kills + 1
-                    task.wait(rng(0.12))
                 end
             end
 
+            end -- close hrp else
             task.wait(rng(0.1))
         end
     end)
